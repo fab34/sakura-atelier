@@ -1119,7 +1119,6 @@
       vec2 c=vUv-0.5; float d=length(c);
       float vig=smoothstep(0.5,0.15,d);
       col=mix(paperColor,col,vig);
-      if(d>0.5) discard;
       gl_FragColor=vec4(col,1.0);
     }`, uniforms:{uDye:{value:null},paperColor:{value:new THREE.Vector3(PAPER_RGB[0],PAPER_RGB[1],PAPER_RGB[2])}}});
 
