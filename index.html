@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>SAKURA — An Ink & Bloom Atelier</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,400&family=Noto+Serif+JP:wght@200;300;400&family=Shippori+Mincho:wght@400;500&display=swap');
+
+  :root{
+    --paper:#f4efe6;
+    --paper-2:#efe7d8;
+    --ink:#2b2622;
+    --ink-soft:#5b5248;
+    --sakura:#d98fa0;
+    --sakura-deep:#b5657a;
+    --line:rgba(43,38,34,0.15);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Noto Serif JP','Cormorant Garamond',serif;
+    overflow-x:hidden;
+  }
+
+  /* ---------- floating petals ---------- */
+  .petal{
+    position:fixed; top:-5%; z-index:5; pointer-events:none;
+    width:14px; height:14px; opacity:0.7;
+    background:radial-gradient(circle at 30% 30%, var(--sakura), var(--sakura-deep));
+    border-radius:0 60% 0 60%;
+    animation:fall linear infinite;
+  }
+  @keyframes fall{
+    0%{transform:translateY(-10vh) rotate(0deg) translateX(0);}
+    100%{transform:translateY(110vh) rotate(360deg) translateX(40px);}
+  }
+
+  section{
+    min-height:100vh;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    position:relative;
+    padding:6vw;
+    text-align:center;
+    overflow:hidden;
+  }
+
+  /* ---------- parallax layers ---------- */
+  .parallax-blob{
+    position:absolute; border-radius:50%; filter:blur(60px);
+    pointer-events:none; will-change:transform; z-index:0;
+  }
+  [data-parallax]{ will-change:transform; }
+
+  /* ---------- hero ---------- */
+  #hero{ background:var(--paper); }
+  /* ---------- suminagashi fluid background (hero) ---------- */
+  #suminagashi{
+    position:absolute; inset:0; width:100%; height:100%;
+    display:block; z-index:0; cursor:crosshair; touch-action:pan-y;
+  }
+  .kicker, h1.brand, .tagline, .suminagashi-hint, .scroll-cue, .ink-dock{
+    position:relative; z-index:1;
+  }
+  .kicker{
+    letter-spacing:0.5em; text-transform:uppercase; font-size:0.7rem;
+    color:var(--ink-soft); margin-bottom:1.4rem; opacity:0;
+    animation:fadeUp 1.2s ease forwards 0.2s;
+  }
+  h1.brand{
+    font-family:'Cormorant Garamond',serif; font-weight:300; font-style:italic;
+    font-size:clamp(3.5rem,10vw,8rem); letter-spacing:0.05em;
+    color:var(--ink); opacity:0; animation:fadeUp 1.4s ease forwards 0.5s;
+  }
+  .tagline{
+    margin-top:1.6rem; font-size:1.05rem; color:var(--ink-soft);
+    max-width:32ch; line-height:1.9; opacity:0;
+    animation:fadeUp 1.4s ease forwards 0.9s;
+  }
+  @keyframes fadeUp{
+    from{opacity:0; transform:translateY(24px);}
+    to{opacity:1; transform:translateY(0);}
+  }
+  .suminagashi-hint{
+    margin-top:2.2rem; font-family:'Shippori Mincho','Yu Mincho','Hiragino Mincho ProN',serif;
+    font-size:0.8rem; letter-spacing:0.6em; color:var(--ink-soft);
+    opacity:0; animation:fadeUp 1.4s ease forwards 1.3s;
+    transition:opacity 1.2s ease; pointer-events:none;
+  }
+  .suminagashi-hint.faded{ opacity:0 !important; }
+  .scroll-cue{
+    position:absolute; bottom:6vh; font-size:0.65rem; letter-spacing:0.4em;
+    color:var(--ink-soft); text-transform:uppercase;
+  }
+  .scroll-cue::after{
+    content:''; display:block; width:1px; height:40px; background:var(--line);
+    margin:10px auto 0; animation:pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:0.2;}50%{opacity:0.8;}}
+
+  /* ---------- ink dock (suminagashi controls) ---------- */
+  .ink-dock{
+    position:absolute; left:50%; bottom:26px; transform:translateX(-50%);
+    display:flex; align-items:center; gap:0.7rem;
+    padding:0.55rem 0.9rem; border-radius:999px;
+    background:rgba(244,239,230,0.55); backdrop-filter:blur(14px) saturate(1.1);
+    border:1px solid rgba(43,38,34,0.12);
+    box-shadow:0 8px 24px rgba(43,38,34,0.08);
+  }
+  .ink-swatch{
+    position:relative; width:26px; height:26px; border-radius:50%;
+    border:1px solid rgba(43,38,34,0.15); background:var(--swatch,var(--ink));
+    cursor:pointer; padding:0; transition:transform .25s ease, box-shadow .25s ease;
+  }
+  .ink-swatch.cycle{
+    background:conic-gradient(#1a1a1f,#16407a,#c8372d,#2e6e52,#1a1a1f);
+  }
+  .ink-swatch:hover{ transform:scale(1.12); }
+  .ink-swatch.active{ box-shadow:0 0 0 2px var(--paper), 0 0 0 3px rgba(43,38,34,0.55); }
+  .ink-label{
+    position:absolute; bottom:120%; left:50%; transform:translateX(-50%);
+    font-size:0.6rem; letter-spacing:0.15em; white-space:nowrap;
+    color:var(--ink-soft); opacity:0; pointer-events:none; transition:opacity .2s ease;
+  }
+  .ink-swatch:hover .ink-label, .ink-swatch.active .ink-label{ opacity:1; }
+  .dock-divider{ width:1px; height:18px; background:rgba(43,38,34,0.15); }
+  .dock-text-btn{
+    display:flex; align-items:center; gap:0.4rem;
+    background:none; border:none; cursor:pointer;
+    font-family:inherit; font-size:0.68rem; letter-spacing:0.1em;
+    color:var(--ink-soft); padding:0.2rem 0.1rem;
+  }
+  .dock-dot{
+    width:6px; height:6px; border-radius:50%;
+    border:1px solid var(--ink-soft); background:transparent;
+  }
+  .dock-dot.on{ background:#3a7bd5; border-color:#3a7bd5; box-shadow:0 0 6px #3a7bd5; }
+  @media (max-width:640px){
+    .ink-dock{ padding:0.4rem 0.6rem; gap:0.45rem; bottom:16px; }
+    .ink-swatch{ width:21px; height:21px; }
+    .dock-text-btn{ font-size:0.58rem; }
+    h1.brand{ font-size:clamp(2.6rem,16vw,4rem); }
+    .kicker{ letter-spacing:0.3em; }
+  }
+
+  /* ---------- reveal-on-scroll sections ---------- */
+  .reveal{
+    opacity:0; transform:translate(var(--px,0px), calc(50px + var(--py,0px)));
+    transition:opacity 1.1s ease, transform 1.1s ease;
+  }
+  .reveal.in{opacity:1; transform:translate(var(--px,0px), var(--py,0px));}
+  [data-parallax]:not(.reveal){ transform:translate(var(--px,0px), var(--py,0px)); }
+
+  #philosophy{ background:var(--paper-2); }
+  .stroke-divider{ width:1px; height:70px; background:var(--line); margin-bottom:2.2rem; }
+  h2.section-title{
+    font-family:'Cormorant Garamond',serif; font-style:italic; font-weight:400;
+    font-size:clamp(2rem,5vw,3.2rem); margin-bottom:1.6rem;
+  }
+  p.body-copy{
+    max-width:44ch; color:var(--ink-soft); line-height:2; font-size:1rem;
+  }
+  .jp-vertical{
+    position:absolute; writing-mode:vertical-rl; font-size:0.85rem;
+    letter-spacing:0.5em; color:var(--ink-soft); opacity:0.5;
+  }
+  #philosophy .jp-vertical{ left:6vw; top:20%; }
+
+  /* ---------- gallery ---------- */
+  #gallery{ background:var(--paper); }
+  .grid{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:1.4rem;
+    width:100%; max-width:1000px; margin-top:3.6rem;
+  }
+  .tile{
+    aspect-ratio:3/4; border-radius:2px; position:relative; overflow:hidden;
+    background:linear-gradient(160deg,#e9e0cf,#d8cbb0);
+  }
+  .tile::after{
+    content:attr(data-label); position:absolute; bottom:10px; left:12px;
+    font-size:0.7rem; letter-spacing:0.15em; color:var(--ink-soft);
+  }
+  .tile:nth-child(1){background:radial-gradient(circle at 70% 30%, var(--sakura) 0%, #e7d3c9 45%, #ecdfce 100%);}
+  .tile:nth-child(2){background:linear-gradient(200deg,#3b3630,#2b2622);}
+  .tile:nth-child(2)::after{color:#d8cbb0;}
+  .tile:nth-child(3){background:radial-gradient(circle at 30% 70%, var(--sakura-deep) 0%, #e2cfc4 50%, #ecdfce 100%);}
+
+  /* ---------- quote ---------- */
+  #quote{ background:var(--ink); color:var(--paper); padding-top:16vh; padding-bottom:4vh; }
+  #quote blockquote{
+    font-family:'Cormorant Garamond',serif; font-style:italic; font-weight:300;
+    font-size:clamp(1.6rem,4vw,2.6rem); max-width:20ch; line-height:1.6;
+  }
+  #quote cite{ display:block; margin-top:1.6rem; font-style:normal; font-size:0.75rem; letter-spacing:0.3em; opacity:0.6; }
+
+  /* ---------- contact / footer ---------- */
+  #visit{ background:var(--paper-2); }
+  .btn{
+    margin-top:2.4rem; padding:1rem 2.6rem; border:1px solid var(--ink);
+    color:var(--ink); text-decoration:none; letter-spacing:0.25em; font-size:0.75rem;
+    text-transform:uppercase; position:relative; overflow:hidden; transition:color .5s ease;
+  }
+  .btn::before{
+    content:''; position:absolute; inset:0; background:var(--ink); transform:translateY(101%);
+    transition:transform .5s ease; z-index:-1;
+  }
+  .btn:hover{color:var(--paper);}
+  .btn:hover::before{transform:translateY(0);}
+
+  footer{
+    padding:3rem; text-align:center; font-size:0.7rem; letter-spacing:0.3em;
+    color:var(--ink-soft); background:var(--paper-2);
+  }
+
+  .draw-bloom{ opacity:0; transform-origin:center; }
+
+  /* ---------- blinds mask transition (quote -> visit) ---------- */
+  .blinds-overlay{
+    position:absolute; inset:0; z-index:5; pointer-events:none;
+  }
+  .blind-strip{
+    position:absolute; left:0; width:100%; height:calc(100%/6);
+    background:var(--ink);
+  }
+  .blind-strip:nth-child(odd){ transform-origin:top; }
+  .blind-strip:nth-child(even){ transform-origin:bottom; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+<section id="hero">
+  <div class="parallax-blob" data-parallax="0.15" style="width:420px;height:420px;left:-8%;top:10%;background:radial-gradient(circle,var(--sakura) 0%,transparent 70%);opacity:0.45;"></div>
+  <div class="parallax-blob" data-parallax="-0.3" data-parallax-x="0.15" style="width:260px;height:260px;left:20%;bottom:-8%;background:radial-gradient(circle,var(--sakura-deep) 0%,transparent 70%);opacity:0.3;"></div>
+  <div class="parallax-blob" data-parallax="0.5" data-parallax-x="-0.1" style="width:180px;height:180px;right:8%;bottom:5%;background:radial-gradient(circle,#c9a86a 0%,transparent 70%);opacity:0.25;"></div>
+  <canvas id="suminagashi" aria-hidden="true"></canvas>
+  <div class="kicker" data-parallax="0.55">冬 畫 · Ink Atelier</div>
+  <h1 class="brand" data-parallax="0.7">Sakura</h1>
+  <p class="tagline" data-parallax="0.7">Where a single brushstroke becomes spring — 一筆落下，即是滿樹春光。</p>
+  <div class="suminagashi-hint" id="suminagashi-hint">画 面 を な ぞ っ て 墨 を 流 す</div>
+  <div class="scroll-cue">Scroll</div>
+  <div class="ink-dock" id="ink-dock">
+    <button type="button" class="ink-swatch cycle" data-ink="cycle" title="巡" aria-label="巡：循環墨色">
+      <span class="ink-label">巡</span>
+    </button>
+    <button type="button" class="ink-swatch active" data-ink="sumi" style="--swatch:#1a1a1f" title="墨" aria-label="墨色">
+      <span class="ink-label">墨</span>
+    </button>
+    <button type="button" class="ink-swatch" data-ink="ai" style="--swatch:#16407a" title="藍" aria-label="藍色">
+      <span class="ink-label">藍</span>
+    </button>
+    <button type="button" class="ink-swatch" data-ink="shu" style="--swatch:#c8372d" title="朱" aria-label="朱色">
+      <span class="ink-label">朱</span>
+    </button>
+    <button type="button" class="ink-swatch" data-ink="matsuba" style="--swatch:#2e6e52" title="松葉" aria-label="松葉色">
+      <span class="ink-label">松葉</span>
+    </button>
+    <div class="dock-divider"></div>
+    <button type="button" class="dock-text-btn" id="autoplay-toggle">
+      <span class="dock-dot on"></span>自動演出
+    </button>
+    <button type="button" class="dock-text-btn" id="wash-away">洗い流す</button>
+  </div>
+</section>
+
+<section id="philosophy">
+  <div class="parallax-blob" data-parallax="0.2" style="width:500px;height:500px;right:-15%;top:-10%;background:radial-gradient(circle,var(--sakura-deep) 0%,transparent 70%);opacity:0.28;"></div>
+  <div class="parallax-blob" data-parallax="-0.35" data-parallax-x="-0.2" style="width:300px;height:300px;left:-6%;bottom:-10%;background:radial-gradient(circle,var(--sakura) 0%,transparent 70%);opacity:0.22;"></div>
+  <svg id="ink-branch" class="ink-branch" data-parallax="0.2" viewBox="0 0 400 520" xmlns="http://www.w3.org/2000/svg"
+       style="position:absolute; left:-6%; top:4%; width:40vw; max-width:560px; opacity:0.85;">
+    <path class="draw-path draw-main" d="M370 20 C 330 90, 300 140, 260 190 C 230 230, 200 250, 150 280 C 110 300, 80 330, 60 380 C 50 405, 45 420, 40 440"
+          stroke="#2b2622" stroke-width="3" fill="none" opacity="0.75" stroke-linecap="round"/>
+    <path class="draw-path draw-twig" d="M310 130 C 335 110, 360 108, 380 120" stroke="#2b2622" stroke-width="2" fill="none" opacity="0.6"/>
+    <path class="draw-path draw-twig" d="M260 190 C 240 170, 210 165, 190 180" stroke="#2b2622" stroke-width="2" fill="none" opacity="0.6"/>
+    <path class="draw-path draw-twig" d="M230 230 C 255 220, 280 225, 300 245" stroke="#2b2622" stroke-width="2" fill="none" opacity="0.6"/>
+    <path class="draw-path draw-twig" d="M150 280 C 130 260, 100 258, 85 275" stroke="#2b2622" stroke-width="2" fill="none" opacity="0.6"/>
+    <path class="draw-path draw-twig" d="M110 300 C 125 320, 145 335, 170 340" stroke="#2b2622" stroke-width="2" fill="none" opacity="0.6"/>
+    <path class="draw-path draw-twig" d="M80 330 C 60 320, 35 320, 15 335" stroke="#2b2622" stroke-width="2" fill="none" opacity="0.6"/>
+    <path class="draw-path draw-twig" d="M60 380 C 40 375, 20 380, 5 395" stroke="#2b2622" stroke-width="2" fill="none" opacity="0.6"/>
+    <path class="draw-path draw-twig" d="M40 440 C 55 455, 65 470, 65 490" stroke="#2b2622" stroke-width="2" fill="none" opacity="0.6"/>
+    <path class="draw-path draw-twig" d="M355 114 C 362 100, 372 92, 385 90" stroke="#2b2622" stroke-width="1.4" fill="none" opacity="0.5"/>
+    <path class="draw-path draw-twig" d="M205 172 C 200 158, 205 145, 218 136" stroke="#2b2622" stroke-width="1.4" fill="none" opacity="0.5"/>
+    <path class="draw-path draw-twig" d="M280 232 C 295 218, 312 212, 328 216" stroke="#2b2622" stroke-width="1.4" fill="none" opacity="0.5"/>
+    <path class="draw-path draw-twig" d="M155 332 C 172 328, 186 318, 192 304" stroke="#2b2622" stroke-width="1.4" fill="none" opacity="0.5"/>
+    <circle class="draw-bloom" cx="380" cy="120" r="6" fill="#d98fa0"/>
+    <circle class="draw-bloom" cx="385" cy="90" r="4" fill="#d98fa0"/>
+    <circle class="draw-bloom" cx="365" cy="105" r="4.5" fill="#e3a9b6"/>
+    <circle class="draw-bloom" cx="200" cy="178" r="7" fill="#d98fa0"/>
+    <circle class="draw-bloom" cx="222" cy="168" r="5" fill="#d98fa0"/>
+    <circle class="draw-bloom" cx="218" cy="136" r="4.5" fill="#e3a9b6"/>
+    <circle class="draw-bloom" cx="300" cy="245" r="6" fill="#d98fa0"/>
+    <circle class="draw-bloom" cx="328" cy="216" r="5" fill="#e3a9b6"/>
+    <circle class="draw-bloom" cx="315" cy="235" r="4" fill="#d98fa0"/>
+    <circle class="draw-bloom" cx="90" cy="270" r="6" fill="#d98fa0"/>
+    <circle class="draw-bloom" cx="70" cy="255" r="4" fill="#d98fa0"/>
+    <circle class="draw-bloom" cx="170" cy="340" r="6" fill="#d98fa0"/>
+    <circle class="draw-bloom" cx="192" cy="304" r="4.5" fill="#e3a9b6"/>
+    <circle class="draw-bloom" cx="15" cy="335" r="6" fill="#d98fa0"/>
+    <circle class="draw-bloom" cx="30" cy="345" r="4" fill="#e3a9b6"/>
+    <circle class="draw-bloom" cx="5" cy="395" r="5.5" fill="#d98fa0"/>
+    <circle class="draw-bloom" cx="60" cy="380" r="8" fill="#d98fa0"/>
+    <circle class="draw-bloom" cx="40" cy="400" r="5" fill="#d98fa0"/>
+    <circle class="draw-bloom" cx="65" cy="490" r="7" fill="#d98fa0"/>
+    <circle class="draw-bloom" cx="75" cy="505" r="4.5" fill="#e3a9b6"/>
+  </svg>
+  <svg class="enso" data-parallax="0.1" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg"
+       style="position:absolute; right:6%; top:50%; transform:translateY(-50%); width:26vw; max-width:320px; opacity:0.55;">
+    <circle class="draw-path draw-enso" cx="150" cy="150" r="110" fill="none"
+            stroke="#2b2622" stroke-width="4" stroke-linecap="round"
+            pathLength="100" style="transform:rotate(-70deg); transform-origin:center;"/>
+  </svg>
+  <span class="jp-vertical" data-parallax="0.4">墨 と 花 の 間 に</span>
+  <div class="stroke-divider reveal"></div>
+  <h2 class="section-title reveal">The space between ink and bloom</h2>
+  <p class="body-copy reveal">
+    每一件作品皆從一筆未乾的墨開始。我們相信留白比落墨更難，
+    克制比技巧更貴——這是水墨與櫻花共同教會我們的事。
+  </p>
+</section>
+
+<section id="gallery">
+  <div class="parallax-blob" data-parallax="0.25" style="width:380px;height:380px;left:40%;bottom:-20%;background:radial-gradient(circle,var(--sakura) 0%,transparent 70%);opacity:0.3;"></div>
+  <div class="parallax-blob" data-parallax="-0.2" data-parallax-x="0.25" style="width:220px;height:220px;right:-4%;top:8%;background:radial-gradient(circle,#c9a86a 0%,transparent 70%);opacity:0.28;"></div>
+  <svg class="flourish" data-parallax="0.15" viewBox="0 0 300 120" xmlns="http://www.w3.org/2000/svg"
+       style="width:22vw; max-width:280px; margin-bottom:0.6rem; opacity:0.7;">
+    <path class="draw-path draw-flourish" d="M10 90 C 60 20, 120 20, 150 55 C 180 90, 230 90, 280 30"
+          stroke="#2b2622" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <circle class="draw-bloom" cx="150" cy="55" r="5" fill="#d98fa0"/>
+    <circle class="draw-bloom" cx="200" cy="70" r="4" fill="#d98fa0"/>
+  </svg>
+  <h2 class="section-title reveal">Selected Works</h2>
+  <div class="grid">
+    <div class="tile reveal" data-label="花信 · No.01" data-parallax="0.12"></div>
+    <div class="tile reveal" data-label="夜墨 · No.02" data-parallax="0.13"></div>
+    <div class="tile reveal" data-label="残香 · No.03" data-parallax="0.12"></div>
+  </div>
+</section>
+
+<section id="quote">
+  <div class="parallax-blob" data-parallax="0.18" style="width:600px;height:600px;left:-20%;top:20%;background:radial-gradient(circle,var(--sakura) 0%,transparent 70%);opacity:0.12;"></div>
+  <div class="parallax-blob" data-parallax="-0.28" data-parallax-x="-0.15" style="width:340px;height:340px;right:-8%;bottom:-15%;background:radial-gradient(circle,var(--sakura-deep) 0%,transparent 70%);opacity:0.15;"></div>
+  <blockquote class="reveal" data-parallax="0.3">"落花有意，流水無情——而畫筆，恰好落在兩者之間。"</blockquote>
+  <svg class="brush-underline" viewBox="0 0 260 20" xmlns="http://www.w3.org/2000/svg" style="width:16vw; max-width:200px; margin-top:1.2rem; opacity:0.6;">
+    <path class="draw-path draw-underline" d="M5 12 C 60 4, 140 18, 255 8" stroke="var(--paper)" stroke-width="3" fill="none" stroke-linecap="round"/>
+  </svg>
+  <cite class="reveal">— Atelier Notes, 2026</cite>
+</section>
+
+<section id="visit">
+  <div class="blinds-overlay">
+    <div class="blind-strip" style="top:0%;"></div>
+    <div class="blind-strip" style="top:16.6667%;"></div>
+    <div class="blind-strip" style="top:33.3333%;"></div>
+    <div class="blind-strip" style="top:50%;"></div>
+    <div class="blind-strip" style="top:66.6667%;"></div>
+    <div class="blind-strip" style="top:83.3333%;"></div>
+  </div>
+  <div class="parallax-blob" data-parallax="0.2" style="width:420px;height:420px;right:-10%;bottom:-15%;background:radial-gradient(circle,var(--sakura-deep) 0%,transparent 70%);opacity:0.28;"></div>
+  <div class="parallax-blob" data-parallax="-0.3" data-parallax-x="0.2" style="width:240px;height:240px;left:6%;top:6%;background:radial-gradient(circle,var(--sakura) 0%,transparent 70%);opacity:0.25;"></div>
+  <svg class="torii" data-parallax="0.1" viewBox="0 0 200 140" xmlns="http://www.w3.org/2000/svg" style="width:14vw; max-width:160px; margin-bottom:1.2rem; opacity:0.7;">
+    <path class="draw-path draw-torii" d="M10 30 L190 30 M25 15 L175 15 M40 30 L40 130 M160 30 L160 130 M40 70 L160 70"
+          stroke="#2b2622" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <h2 class="section-title reveal">Visit the Atelier</h2>
+  <p class="body-copy reveal">私人預約制工作室，位於京都巷弄深處，僅接受少量委託創作。</p>
+  <a href="#" class="btn reveal">Reserve a Visit</a>
+</section>
+
+<footer>SAKURA ATELIER · EST. 2026 · KYOTO</footer>
+
+<script>
+  // falling petals
+  for(let i=0;i<18;i++){
+    const p=document.createElement('div');
+    p.className='petal';
+    p.style.left=Math.random()*100+'vw';
+    p.style.animationDuration=(8+Math.random()*10)+'s';
+    p.style.animationDelay=(Math.random()*10)+'s';
+    p.style.width=p.style.height=(8+Math.random()*10)+'px';
+    document.body.appendChild(p);
+  }
+
+  // scroll reveal
+  const io=new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+      }
+    });
+  },{threshold:0.2});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+  // parallax: each [data-parallax] element shifts vertically at its own
+  // fraction of the scroll delta, so layers within a section drift apart
+  // as you scroll — the effect the user pointed out was missing.
+  const parallaxEls=[...document.querySelectorAll('[data-parallax]')];
+  let ticking=false;
+  function updateParallax(){
+    const y=window.scrollY;
+    parallaxEls.forEach(el=>{
+      const vy=parseFloat(el.dataset.parallax);
+      const vx=parseFloat(el.dataset.parallaxX||0);
+      el.style.setProperty('--py', `${y*vy*-0.4}px`);
+      if(vx) el.style.setProperty('--px', `${y*vx*-0.4}px`);
+    });
+    ticking=false;
+  }
+  window.addEventListener('scroll',()=>{
+    if(!ticking){
+      requestAnimationFrame(updateParallax);
+      ticking=true;
+    }
+  },{passive:true});
+  updateParallax();
+
+  // scroll-scrubbed SVG line drawing for the remaining decorative elements
+  // (hero's ink branch was replaced by the suminagashi fluid canvas below).
+  gsap.registerPlugin(ScrollTrigger);
+  const drawPaths=document.querySelectorAll('.draw-path');
+  drawPaths.forEach(p=>{
+    const len=p.getTotalLength();
+    p.style.strokeDasharray=len;
+    p.style.strokeDashoffset=len;
+  });
+
+  // additional vector elements, each drawn as its own section scrolls
+  // through the viewport (scrubbed, not pinned — a lighter touch than hero).
+  function drawOnEnter(selector,triggerSelector,extra,end,start){
+    const el=document.querySelector(selector);
+    if(!el) return;
+    gsap.timeline({
+      scrollTrigger:{
+        trigger:triggerSelector,
+        start:start||'top 80%',
+        end:end||'top 30%',
+        scrub:0.6
+      }
+    }).to(selector,{strokeDashoffset:0,duration:1,ease:'none'});
+    if(extra) extra();
+  }
+  drawOnEnter('.draw-enso','#philosophy');
+
+  // the lush branch (moved here from hero, now that hero's background is
+  // the suminagashi fluid canvas): unpinned, unfolds gradually while
+  // #philosophy is in view. NOTE: 'top bottom' -> 'bottom top' spans a full
+  // 2x-viewport-height scroll distance, but the section only visually fills
+  // the screen for the first half of that (by the time its bottom reaches
+  // viewport top it has already scrolled fully past) — so that range made
+  // the animation finish only after the section was no longer visible.
+  // Ending at 'bottom 55%' instead completes the reveal while the section's
+  // bottom is still comfortably on screen.
+  gsap.timeline({
+    scrollTrigger:{
+      trigger:'#philosophy',
+      start:'top 90%',
+      end:'bottom 75%',
+      scrub:0.6
+    }
+  })
+    .to('#philosophy .draw-main',{strokeDashoffset:0,duration:1,ease:'none'})
+    .to('#philosophy .draw-twig',{strokeDashoffset:0,duration:0.6,ease:'none',stagger:0.1},'-=0.4')
+    .to('#philosophy .draw-bloom',{opacity:1,scale:1,duration:0.5,ease:'back.out(2)',stagger:0.04},'-=0.6');
+  drawOnEnter('.draw-flourish','#gallery',()=>{
+    gsap.timeline({
+      scrollTrigger:{trigger:'#gallery',start:'top 80%',end:'top 50%',scrub:0.6}
+    }).to('#gallery .draw-bloom',{opacity:1,scale:1,duration:1,ease:'back.out(2)',stagger:0.2},0.4);
+  },'top 50%');
+  // the underline sits below the vertically-centered blockquote, well below
+  // the section's top edge — the default 'top 80%'->'top 30%' range (keyed
+  // to the section's top) finished before that stroke had scrolled into
+  // view, so it's shifted later here.
+  drawOnEnter('.draw-underline','#quote',null,'top -30%','top 40%');
+  drawOnEnter('.draw-torii','#visit');
+
+  // blinds mask transition: #visit is pinned briefly while six ink-colored
+  // strips peel away (alternating top/bottom origin) to reveal the section
+  // underneath — the SVG-mask "venetian blinds" technique from the
+  // tympanus reference, done with plain divs instead of an SVG <mask>.
+  gsap.timeline({
+    scrollTrigger:{
+      trigger:'#visit',
+      start:'top top',
+      end:'+=70%',
+      scrub:0.6,
+      pin:true,
+      anticipatePin:1
+    }
+  }).to('.blind-strip',{scaleY:0,duration:1,ease:'none',stagger:0.08});
+</script>
+
+<script>
+// ============================================================
+// Suminagashi (墨流し) — GPU fluid ink simulation, hero background.
+// Stable-fluids (Jos Stam) solver: advection, curl/vorticity,
+// divergence, jacobi pressure solve, gradient subtraction —
+// run on ping-pong WebGLRenderTargets via Three.js r128.
+// Scoped to #hero only: it is a background layer for the existing
+// scroll site, not a standalone page, so the render loop is gated
+// by IntersectionObserver (pause when hero is off-screen) and the
+// canvas never blocks page scroll.
+// ============================================================
+(function(){
+  if(!window.THREE){ console.warn('Three.js unavailable — suminagashi background disabled.'); return; }
+
+  const heroEl = document.getElementById('hero');
+  const canvas = document.getElementById('suminagashi');
+  if(!heroEl || !canvas) return;
+
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- config (per spec) ----------
+  const SIM_RES = 256;
+  const DYE_RES = 1280;
+  const PRESSURE_ITER = 28;
+  const PRESSURE_DECAY = 0.8; // stability: mild decay before each solve
+  const VEL_DISSIPATION = 0.16;
+  const DYE_DISSIPATION = 0.07;
+  const CURL = 14;
+  const SPLAT_RADIUS = 0.0026;
+  const SPLAT_FORCE = 5200;
+  const PAPER_HEX = 0xf4efe6; // matches --paper, so it blends into the rest of the page
+
+  const INK_HEX = { sumi:0x1a1a1f, ai:0x16407a, shu:0xc8372d, matsuba:0x2e6e52 };
+  const CYCLE_ORDER = ['sumi','ai','shu','matsuba'];
+
+  function hexToRGB01(hex){ return [((hex>>16)&255)/255, ((hex>>8)&255)/255, (hex&255)/255]; }
+  const PAPER_RGB = hexToRGB01(PAPER_HEX);
+  function computeAbsorption(hex){
+    const rgb = hexToRGB01(hex);
+    return rgb.map((c,i)=> Math.max(0, -Math.log(Math.max(c,0.015)/PAPER_RGB[i])));
+  }
+  const ABSORPTION = {};
+  Object.keys(INK_HEX).forEach(k=> ABSORPTION[k]=computeAbsorption(INK_HEX[k]));
+
+  // ---------- three.js core ----------
+  const renderer = new THREE.WebGLRenderer({canvas, alpha:false, antialias:false, preserveDrawingBuffer:false, powerPreference:'low-power'});
+  renderer.autoClear = false;
+  renderer.setPixelRatio(1); // sim resolution is already controlled explicitly; avoid extra DPR cost
+
+  const gl = renderer.getContext();
+  function getSupportedType(){
+    const isWebGL2 = renderer.capabilities.isWebGL2;
+    if(isWebGL2 && gl.getExtension('EXT_color_buffer_float')){
+      return THREE.FloatType;
+    }
+    if(gl.getExtension('OES_texture_half_float') && gl.getExtension('OES_texture_half_float_linear')){
+      return THREE.HalfFloatType;
+    }
+    return THREE.UnsignedByteType;
+  }
+  const TEX_TYPE = getSupportedType();
+
+  const camera = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+  const scene = new THREE.Scene();
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2,2));
+  scene.add(quad);
+  function blit(material, target){
+    quad.material = material;
+    renderer.setRenderTarget(target);
+    renderer.render(scene, camera);
+  }
+
+  function createFBO(w,h){
+    return new THREE.WebGLRenderTarget(w,h,{
+      wrapS:THREE.ClampToEdgeWrapping, wrapT:THREE.ClampToEdgeWrapping,
+      minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter,
+      type:TEX_TYPE, format:THREE.RGBAFormat, depthBuffer:false, stencilBuffer:false
+    });
+  }
+  function createDoubleFBO(w,h){
+    let a = createFBO(w,h), b = createFBO(w,h);
+    return {
+      get read(){ return a; }, get write(){ return b; },
+      swap(){ const t=a; a=b; b=t; }
+    };
+  }
+  function getResolution(res, w, h){
+    let ar = w/h; if(ar<1) ar = 1/ar;
+    const min = Math.round(res), max = Math.round(res*ar);
+    return (w>h) ? {w:max,h:min} : {w:min,h:max};
+  }
+
+  let velocity, dye, curlFBO, divergenceFBO, pressure;
+  let simW, simH, dyeW, dyeH;
+
+  const VERT = `varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }`;
+
+  const splatMat = new THREE.ShaderMaterial({
+    vertexShader:VERT,
+    fragmentShader:`
+      precision highp float; varying vec2 vUv;
+      uniform sampler2D uTarget; uniform float aspectRatio;
+      uniform vec3 color; uniform vec2 point; uniform float radius;
+      void main(){
+        vec2 p = vUv - point; p.x *= aspectRatio;
+        float splat = exp(-dot(p,p)/radius);
+        vec3 base = texture2D(uTarget, vUv).xyz;
+        gl_FragColor = vec4(base + splat*color, 1.0);
+      }`,
+    uniforms:{ uTarget:{value:null}, aspectRatio:{value:1}, color:{value:new THREE.Vector3()}, point:{value:new THREE.Vector2()}, radius:{value:SPLAT_RADIUS} }
+  });
+
+  const advectionMat = new THREE.ShaderMaterial({
+    vertexShader:VERT,
+    fragmentShader:`
+      precision highp float; varying vec2 vUv;
+      uniform sampler2D uVelocity; uniform sampler2D uSource;
+      uniform vec2 texelSize; uniform float dt; uniform float dissipation;
+      void main(){
+        vec2 coord = vUv - dt * texture2D(uVelocity, vUv).xy * texelSize;
+        gl_FragColor = dissipation * texture2D(uSource, coord);
+      }`,
+    uniforms:{ uVelocity:{value:null}, uSource:{value:null}, texelSize:{value:new THREE.Vector2()}, dt:{value:0.016}, dissipation:{value:1} }
+  });
+
+  const curlMat = new THREE.ShaderMaterial({
+    vertexShader:VERT,
+    fragmentShader:`
+      precision highp float; varying vec2 vUv;
+      uniform sampler2D uVelocity; uniform vec2 texelSize;
+      void main(){
+        float L=texture2D(uVelocity,vUv-vec2(texelSize.x,0.0)).y;
+        float R=texture2D(uVelocity,vUv+vec2(texelSize.x,0.0)).y;
+        float B=texture2D(uVelocity,vUv-vec2(0.0,texelSize.y)).x;
+        float T=texture2D(uVelocity,vUv+vec2(0.0,texelSize.y)).x;
+        gl_FragColor = vec4(0.5*((R-L)-(T-B)),0.0,0.0,1.0);
+      }`,
+    uniforms:{ uVelocity:{value:null}, texelSize:{value:new THREE.Vector2()} }
+  });
+
+  const vorticityMat = new THREE.ShaderMaterial({
+    vertexShader:VERT,
+    fragmentShader:`
+      precision highp float; varying vec2 vUv;
+      uniform sampler2D uVelocity; uniform sampler2D uCurl;
+      uniform float curlStrength; uniform vec2 texelSize; uniform float dt;
+      void main(){
+        float L=texture2D(uCurl,vUv-vec2(texelSize.x,0.0)).x;
+        float R=texture2D(uCurl,vUv+vec2(texelSize.x,0.0)).x;
+        float B=texture2D(uCurl,vUv-vec2(0.0,texelSize.y)).x;
+        float T=texture2D(uCurl,vUv+vec2(0.0,texelSize.y)).x;
+        float C=texture2D(uCurl,vUv).x;
+        vec2 force = 0.5*vec2(abs(T)-abs(B), abs(R)-abs(L));
+        force /= length(force)+0.0001;
+        force *= curlStrength*C;
+        force.y *= -1.0;
+        vec2 vel = texture2D(uVelocity,vUv).xy;
+        gl_FragColor = vec4(vel+force*dt, 0.0, 1.0);
+      }`,
+    uniforms:{ uVelocity:{value:null}, uCurl:{value:null}, curlStrength:{value:CURL}, texelSize:{value:new THREE.Vector2()}, dt:{value:0.016} }
+  });
+
+  const divergenceMat = new THREE.ShaderMaterial({
+    vertexShader:VERT,
+    fragmentShader:`
+      precision highp float; varying vec2 vUv;
+      uniform sampler2D uVelocity; uniform vec2 texelSize;
+      void main(){
+        float L=texture2D(uVelocity,vUv-vec2(texelSize.x,0.0)).x;
+        float R=texture2D(uVelocity,vUv+vec2(texelSize.x,0.0)).x;
+        float B=texture2D(uVelocity,vUv-vec2(0.0,texelSize.y)).y;
+        float T=texture2D(uVelocity,vUv+vec2(0.0,texelSize.y)).y;
+        gl_FragColor = vec4(0.5*((R-L)+(T-B)),0.0,0.0,1.0);
+      }`,
+    uniforms:{ uVelocity:{value:null}, texelSize:{value:new THREE.Vector2()} }
+  });
+
+  const clearMat = new THREE.ShaderMaterial({
+    vertexShader:VERT,
+    fragmentShader:`
+      precision highp float; varying vec2 vUv;
+      uniform sampler2D uTexture; uniform float value;
+      void main(){ gl_FragColor = value * texture2D(uTexture, vUv); }`,
+    uniforms:{ uTexture:{value:null}, value:{value:1} }
+  });
+
+  const pressureMat = new THREE.ShaderMaterial({
+    vertexShader:VERT,
+    fragmentShader:`
+      precision highp float; varying vec2 vUv;
+      uniform sampler2D uPressure; uniform sampler2D uDivergence; uniform vec2 texelSize;
+      void main(){
+        float L=texture2D(uPressure,vUv-vec2(texelSize.x,0.0)).x;
+        float R=texture2D(uPressure,vUv+vec2(texelSize.x,0.0)).x;
+        float B=texture2D(uPressure,vUv-vec2(0.0,texelSize.y)).x;
+        float T=texture2D(uPressure,vUv+vec2(0.0,texelSize.y)).x;
+        float div=texture2D(uDivergence,vUv).x;
+        gl_FragColor = vec4((L+R+B+T-div)*0.25,0.0,0.0,1.0);
+      }`,
+    uniforms:{ uPressure:{value:null}, uDivergence:{value:null}, texelSize:{value:new THREE.Vector2()} }
+  });
+
+  const gradientMat = new THREE.ShaderMaterial({
+    vertexShader:VERT,
+    fragmentShader:`
+      precision highp float; varying vec2 vUv;
+      uniform sampler2D uPressure; uniform sampler2D uVelocity; uniform vec2 texelSize;
+      void main(){
+        float L=texture2D(uPressure,vUv-vec2(texelSize.x,0.0)).x;
+        float R=texture2D(uPressure,vUv+vec2(texelSize.x,0.0)).x;
+        float B=texture2D(uPressure,vUv-vec2(0.0,texelSize.y)).x;
+        float T=texture2D(uPressure,vUv+vec2(0.0,texelSize.y)).x;
+        vec2 vel = texture2D(uVelocity,vUv).xy;
+        vel -= vec2(R-L, T-B)*0.5;
+        gl_FragColor = vec4(vel,0.0,1.0);
+      }`,
+    uniforms:{ uPressure:{value:null}, uVelocity:{value:null}, texelSize:{value:new THREE.Vector2()} }
+  });
+
+  const displayMat = new THREE.ShaderMaterial({
+    vertexShader:VERT,
+    fragmentShader:`
+      precision highp float; varying vec2 vUv;
+      uniform sampler2D uDye; uniform vec3 paperColor; uniform vec2 resolution;
+      float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123); }
+      float noise(vec2 p){
+        vec2 i=floor(p), f=fract(p);
+        float a=hash(i), b=hash(i+vec2(1.0,0.0)), c=hash(i+vec2(0.0,1.0)), d=hash(i+vec2(1.0,1.0));
+        vec2 u=f*f*(3.0-2.0*f);
+        return mix(a,b,u.x) + (c-a)*u.y*(1.0-u.x) + (d-b)*u.x*u.y;
+      }
+      void main(){
+        vec3 absorption = texture2D(uDye, vUv).rgb;
+        vec3 col = paperColor * exp(-absorption);
+        vec2 px = vUv*resolution;
+        float nHigh = noise(px*0.9)-0.5;
+        float nMid  = noise(px*0.18+11.0)-0.5;
+        float nLow  = noise(px*0.03+37.0)-0.5;
+        col += nHigh*0.025 + nMid*0.02 + nLow*0.03;
+        vec2 c = vUv-0.5;
+        float vig = smoothstep(0.78,0.2,length(c));
+        col = mix(col*0.88, col, vig);
+        gl_FragColor = vec4(col,1.0);
+      }`,
+    uniforms:{ uDye:{value:null}, paperColor:{value:new THREE.Vector3(PAPER_RGB[0],PAPER_RGB[1],PAPER_RGB[2])}, resolution:{value:new THREE.Vector2()} }
+  });
+
+  function initFramebuffers(w,h){
+    const sim = getResolution(SIM_RES, w, h);
+    const dyeRes = getResolution(DYE_RES, w, h);
+    simW=sim.w; simH=sim.h; dyeW=dyeRes.w; dyeH=dyeRes.h;
+    velocity = createDoubleFBO(simW, simH);
+    curlFBO = createFBO(simW, simH);
+    divergenceFBO = createFBO(simW, simH);
+    pressure = createDoubleFBO(simW, simH);
+    dye = createDoubleFBO(dyeW, dyeH);
+  }
+
+  function resize(){
+    const w = Math.max(1, Math.floor(heroEl.clientWidth));
+    const h = Math.max(1, Math.floor(heroEl.clientHeight || window.innerHeight));
+    renderer.setSize(w,h,false);
+    displayMat.uniforms.resolution.value.set(w,h);
+    initFramebuffers(w,h);
+  }
+
+  // ---------- simulation step ----------
+  function step(dt){
+    const simTexel = new THREE.Vector2(1/simW, 1/simH);
+
+    curlMat.uniforms.uVelocity.value = velocity.read.texture;
+    curlMat.uniforms.texelSize.value = simTexel;
+    blit(curlMat, curlFBO);
+
+    vorticityMat.uniforms.uVelocity.value = velocity.read.texture;
+    vorticityMat.uniforms.uCurl.value = curlFBO.texture;
+    vorticityMat.uniforms.texelSize.value = simTexel;
+    vorticityMat.uniforms.dt.value = dt;
+    blit(vorticityMat, velocity.write); velocity.swap();
+
+    divergenceMat.uniforms.uVelocity.value = velocity.read.texture;
+    divergenceMat.uniforms.texelSize.value = simTexel;
+    blit(divergenceMat, divergenceFBO);
+
+    clearMat.uniforms.uTexture.value = pressure.read.texture;
+    clearMat.uniforms.value.value = PRESSURE_DECAY;
+    blit(clearMat, pressure.write); pressure.swap();
+
+    for(let i=0;i<PRESSURE_ITER;i++){
+      pressureMat.uniforms.uPressure.value = pressure.read.texture;
+      pressureMat.uniforms.uDivergence.value = divergenceFBO.texture;
+      pressureMat.uniforms.texelSize.value = simTexel;
+      blit(pressureMat, pressure.write); pressure.swap();
+    }
+
+    gradientMat.uniforms.uPressure.value = pressure.read.texture;
+    gradientMat.uniforms.uVelocity.value = velocity.read.texture;
+    gradientMat.uniforms.texelSize.value = simTexel;
+    blit(gradientMat, velocity.write); velocity.swap();
+
+    const velDecay = Math.pow(0.02, dt*VEL_DISSIPATION);
+    advectionMat.uniforms.uVelocity.value = velocity.read.texture;
+    advectionMat.uniforms.uSource.value = velocity.read.texture;
+    advectionMat.uniforms.texelSize.value = simTexel;
+    advectionMat.uniforms.dt.value = dt;
+    advectionMat.uniforms.dissipation.value = velDecay;
+    blit(advectionMat, velocity.write); velocity.swap();
+
+    const dyeTexel = new THREE.Vector2(1/dyeW, 1/dyeH);
+    const dyeDecay = Math.pow(0.02, dt*DYE_DISSIPATION);
+    advectionMat.uniforms.uVelocity.value = velocity.read.texture;
+    advectionMat.uniforms.uSource.value = dye.read.texture;
+    advectionMat.uniforms.texelSize.value = dyeTexel;
+    advectionMat.uniforms.dt.value = dt;
+    advectionMat.uniforms.dissipation.value = washing ? washDecay(dt) : dyeDecay;
+    blit(advectionMat, dye.write); dye.swap();
+  }
+
+  // ---------- wash-away (洗い流す): fades over ~1.5s, framerate independent ----------
+  let washing=false, washT=0;
+  function washDecay(dt){ return Math.pow(0.02, dt/1.5); }
+  function updateWash(dt){
+    if(!washing) return;
+    washT += dt;
+    if(washT>1.6) washing=false;
+  }
+
+  // ---------- splats ----------
+  function applySplat(px, py, dx, dy, paintDye, colorKey){
+    const aspect = simW/simH;
+    splatMat.uniforms.uTarget.value = velocity.read.texture;
+    splatMat.uniforms.aspectRatio.value = aspect;
+    splatMat.uniforms.point.value.set(px,py);
+    splatMat.uniforms.color.value.set(dx,dy,0);
+    splatMat.uniforms.radius.value = SPLAT_RADIUS;
+    blit(splatMat, velocity.write); velocity.swap();
+
+    if(paintDye && colorKey){
+      const a = ABSORPTION[colorKey];
+      splatMat.uniforms.uTarget.value = dye.read.texture;
+      splatMat.uniforms.color.value.set(a[0],a[1],a[2]);
+      splatMat.uniforms.radius.value = SPLAT_RADIUS*1.4;
+      blit(splatMat, dye.write); dye.swap();
+    }
+  }
+
+  // ---------- UI state ----------
+  let currentColorKey='sumi';
+  let cycleMode=false;
+  let cycleIdx=0;
+  let autoplayOn=true;
+  const hintEl = document.getElementById('suminagashi-hint');
+  let hintHidden=false;
+  function hideHint(){
+    if(hintHidden) return;
+    hintHidden=true;
+    hintEl && hintEl.classList.add('faded');
+  }
+  setTimeout(hideHint, 9000);
+
+  function nextPaintColor(){
+    if(cycleMode){ const k=CYCLE_ORDER[cycleIdx % CYCLE_ORDER.length]; cycleIdx++; return k; }
+    return currentColorKey;
+  }
+
+  document.querySelectorAll('.ink-swatch').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.ink-swatch').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const key = btn.dataset.ink;
+      if(key==='cycle'){ cycleMode=true; cycleIdx=0; }
+      else { cycleMode=false; currentColorKey=key; }
+    });
+  });
+  const autoplayBtn = document.getElementById('autoplay-toggle');
+  autoplayBtn && autoplayBtn.addEventListener('click', ()=>{
+    autoplayOn = !autoplayOn;
+    autoplayBtn.querySelector('.dock-dot').classList.toggle('on', autoplayOn);
+  });
+  const washBtn = document.getElementById('wash-away');
+  washBtn && washBtn.addEventListener('click', ()=>{ washing=true; washT=0; markInteraction(); });
+
+  // ---------- pointer interaction ----------
+  let lastInteraction = performance.now();
+  function markInteraction(){ lastInteraction = performance.now(); hideHint(); }
+
+  let activePointerId=null, lastPx=0.5, lastPy=0.5, strokeColor='sumi';
+  function normFromEvent(e){
+    const rect = canvas.getBoundingClientRect();
+    return [ (e.clientX-rect.left)/rect.width, 1 - (e.clientY-rect.top)/rect.height ];
+  }
+  canvas.addEventListener('pointerdown', (e)=>{
+    activePointerId = e.pointerId;
+    try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
+    const [x,y] = normFromEvent(e);
+    lastPx=x; lastPy=y;
+    strokeColor = nextPaintColor();
+    markInteraction();
+    applySplat(x,y,(Math.random()-0.5)*SPLAT_FORCE*0.1,(Math.random()-0.5)*SPLAT_FORCE*0.1,true,strokeColor);
+  });
+  canvas.addEventListener('pointermove', (e)=>{
+    const [x,y] = normFromEvent(e);
+    const dx=(x-lastPx)*SPLAT_FORCE, dy=(y-lastPy)*SPLAT_FORCE;
+    const painting = e.pointerId===activePointerId && (e.buttons & 1);
+    if(painting){
+      applySplat(x,y,dx,dy,true,strokeColor);
+      markInteraction();
+    } else {
+      applySplat(x,y,dx*0.5,dy*0.5,false);
+    }
+    lastPx=x; lastPy=y;
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach(evt=>{
+    window.addEventListener(evt, (e)=>{ if(e.pointerId===activePointerId) activePointerId=null; });
+  });
+
+  window.addEventListener('keydown', (e)=>{
+    if(!heroVisible) return;
+    if(e.code==='Space'){
+      e.preventDefault(); markInteraction();
+      const key=nextPaintColor();
+      applySplat(Math.random(),Math.random(),(Math.random()-0.5)*SPLAT_FORCE,(Math.random()-0.5)*SPLAT_FORCE,true,key);
+    } else if(e.key==='x' || e.key==='X'){
+      washing=true; washT=0; markInteraction();
+    }
+  });
+
+  // ---------- autoplay: idle drift + occasional drops ----------
+  let lastAutoSplat=0, lastFlow=0;
+  function updateAutoplay(now){
+    if(!autoplayOn) return;
+    const idleFor = now-lastInteraction;
+    const dropGap = reducedMotion ? 3200 : 1600;
+    const flowGap = reducedMotion ? 1100 : 450;
+    if(idleFor>3000 && now-lastAutoSplat>dropGap){
+      lastAutoSplat=now;
+      const x=Math.random(), y=Math.random();
+      const key=nextPaintColor();
+      applySplat(x,y,(Math.random()-0.5)*SPLAT_FORCE*0.6,(Math.random()-0.5)*SPLAT_FORCE*0.6,true,key);
+      if(!reducedMotion && Math.random()<0.5){
+        setTimeout(()=>{
+          const key2=nextPaintColor();
+          applySplat(x+(Math.random()-0.5)*0.12, y+(Math.random()-0.5)*0.12, (Math.random()-0.5)*SPLAT_FORCE*0.4,(Math.random()-0.5)*SPLAT_FORCE*0.4, true, key2);
+        }, 180+Math.random()*260);
+      }
+    }
+    if(now-lastFlow>flowGap){
+      lastFlow=now;
+      applySplat(Math.random(),Math.random(),(Math.random()-0.5)*SPLAT_FORCE*0.35,(Math.random()-0.5)*SPLAT_FORCE*0.35,false);
+    }
+  }
+
+  // ---------- initial three-drop intro ----------
+  function introSequence(){
+    setTimeout(()=>applySplat(0.38,0.58,0,0,true,'sumi'), 0);
+    setTimeout(()=>applySplat(0.62,0.42,0,0,true,'ai'), 450);
+    setTimeout(()=>applySplat(0.5,0.62,0,0,true,'shu'), 950);
+  }
+
+  // ---------- render loop, gated by visibility ----------
+  let heroVisible=true, rafId=null, lastFrameTime=performance.now();
+  function loop(now){
+    rafId = requestAnimationFrame(loop);
+    let dt = (now-lastFrameTime)/1000; lastFrameTime=now;
+    dt = Math.min(dt, 1/30);
+    step(dt);
+    updateAutoplay(now);
+    updateWash(dt);
+    displayMat.uniforms.uDye.value = dye.read.texture;
+    blit(displayMat, null);
+  }
+  function startLoop(){ if(!rafId){ lastFrameTime=performance.now(); rafId=requestAnimationFrame(loop); } }
+  function stopLoop(){ if(rafId){ cancelAnimationFrame(rafId); rafId=null; } }
+
+  new IntersectionObserver((entries)=>{
+    entries.forEach(entry=>{
+      heroVisible = entry.isIntersecting;
+      if(heroVisible) startLoop(); else stopLoop();
+    });
+  },{threshold:0.05}).observe(heroEl);
+
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden) stopLoop(); else if(heroVisible) startLoop();
+  });
+
+  let resizeTimer=null;
+  window.addEventListener('resize', ()=>{
+    clearTimeout(resizeTimer);
+    resizeTimer=setTimeout(resize, 200);
+  });
+
+  // ---------- boot ----------
+  resize();
+  startLoop();
+  introSequence();
+})();
+</script>
+
+</body>
+</html>
