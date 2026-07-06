@@ -480,10 +480,30 @@
   drawOnEnter('.draw-underline','#quote',null,'top -40%','top 30%');
   drawOnEnter('.draw-torii','#visit');
 
+  // #quote's dark ink background gradually lightens as the user scrolls
+  // out of it, so the fade is already underway by the time the blinds
+  // below pick it up (they carry the same fade the rest of the way —
+  // see below, since #quote itself is off-screen by then).
+  gsap.to('#quote',{
+    backgroundColor:'#efe7d8', // matches --paper-2
+    ease:'none',
+    scrollTrigger:{
+      trigger:'#quote',
+      start:'top -80%',
+      endTrigger:'#visit',
+      end:'+=70%',
+      scrub:0.6
+    }
+  });
+
   // blinds mask transition: #visit is pinned briefly while six ink-colored
   // strips peel away (alternating top/bottom origin) to reveal the section
   // underneath — the SVG-mask "venetian blinds" technique from the
   // tympanus reference, done with plain divs instead of an SVG <mask>.
+  // The strips also fade from ink to paper as they shrink: they (not
+  // #quote, which has already scrolled off-screen) are the dark surface
+  // actually visible during this transition, so the ink-to-paper fade
+  // needs to happen on them to read as one continuous dissolve.
   gsap.timeline({
     scrollTrigger:{
       trigger:'#visit',
@@ -493,7 +513,7 @@
       pin:true,
       anticipatePin:1
     }
-  }).to('.blind-strip',{scaleY:0,duration:1,ease:'none',stagger:0.08});
+  }).to('.blind-strip',{scaleY:0,backgroundColor:'#efe7d8',duration:1,ease:'none',stagger:0.08});
 </script>
 
 <script>
@@ -1010,8 +1030,8 @@
   if(!hostEl || !canvas) return;
 
   const SIM_RES=48, DYE_RES=220, PRESSURE_ITER=16, PRESSURE_DECAY=0.8;
-  const VEL_DISSIPATION=0.35, DYE_DISSIPATION=0.22, CURL=10;
-  const SPLAT_RADIUS=0.012, DROP_GAP=3600;
+  const VEL_DISSIPATION=0.35, DYE_DISSIPATION=0.11, CURL=10;
+  const SPLAT_RADIUS=0.012, DROP_GAP=7200;
   const PAPER_HEX=0xefe7d8; // matches --paper-2
   const INK_HEX=0x1a1a1f;
 
