@@ -1,3 +1,5 @@
+**English | [繁體中文](README.zh-TW.md)**
+
 # Sakura Atelier
 
 An interactive, scroll-driven single-page site for a fictional ink-and-blossom atelier — built as a design demo combining scroll storytelling, SVG line-drawing animation, and a real-time GPU fluid simulation.
