@@ -316,12 +316,8 @@
     <circle class="draw-bloom" cx="65" cy="490" r="7" fill="#d98fa0"/>
     <circle class="draw-bloom" cx="75" cy="505" r="4.5" fill="#e3a9b6"/>
   </svg>
-  <svg class="enso" data-parallax="0.1" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg"
-       style="position:absolute; right:6%; top:50%; transform:translateY(-50%); width:26vw; max-width:320px; opacity:0.55;">
-    <circle class="draw-path draw-enso" cx="150" cy="150" r="110" fill="none"
-            stroke="#2b2622" stroke-width="4" stroke-linecap="round"
-            pathLength="100" style="transform:rotate(-70deg); transform-origin:center;"/>
-  </svg>
+  <canvas id="ink-drop" data-parallax="0.1" aria-hidden="true"
+          style="position:absolute; right:6%; top:50%; transform:translateY(-50%); width:26vw; height:26vw; max-width:320px; max-height:320px; opacity:0.8; border-radius:50%;"></canvas>
   <span class="jp-vertical" data-parallax="0.4">墨 と 花 の 間 に</span>
   <div class="stroke-divider reveal"></div>
   <h2 class="section-title reveal">The space between ink and bloom</h2>
@@ -452,8 +448,6 @@
     }).to(selector,{strokeDashoffset:0,duration:1,ease:'none'});
     if(extra) extra();
   }
-  drawOnEnter('.draw-enso','#philosophy');
-
   // the lush branch (moved here from hero, now that hero's background is
   // the suminagashi fluid canvas): unpinned, unfolds gradually while
   // #philosophy is in view. NOTE: 'top bottom' -> 'bottom top' spans a full
@@ -997,6 +991,222 @@
   resize();
   startLoop();
   introSequence();
+})();
+</script>
+
+<script>
+// ============================================================
+// Ink-drop loop — a second, much smaller GPU fluid instance that
+// replaces the ensō circle in #philosophy. Same stable-fluids
+// technique as the hero's suminagashi canvas, but tiny, single-color,
+// non-interactive: it just drips a bead of ink at its center on a
+// timer and lets it bloom and fade, echoing "每一件作品皆從一筆未乾
+// 的墨開始" (every work starts from a stroke of still-wet ink).
+// ============================================================
+(function(){
+  if(!window.THREE) return;
+  const hostEl = document.getElementById('philosophy');
+  const canvas = document.getElementById('ink-drop');
+  if(!hostEl || !canvas) return;
+
+  const SIM_RES=48, DYE_RES=220, PRESSURE_ITER=16, PRESSURE_DECAY=0.8;
+  const VEL_DISSIPATION=0.35, DYE_DISSIPATION=0.22, CURL=10;
+  const SPLAT_RADIUS=0.012, DROP_GAP=3600;
+  const PAPER_HEX=0xefe7d8; // matches --paper-2
+  const INK_HEX=0x1a1a1f;
+
+  function hexToRGB01(hex){ return [((hex>>16)&255)/255, ((hex>>8)&255)/255, (hex&255)/255]; }
+  const PAPER_RGB=hexToRGB01(PAPER_HEX);
+  const ABSORPTION=hexToRGB01(INK_HEX).map((c,i)=>Math.max(0,-Math.log(Math.max(c,0.015)/PAPER_RGB[i])));
+
+  const renderer=new THREE.WebGLRenderer({canvas,alpha:false,antialias:false,powerPreference:'low-power'});
+  renderer.autoClear=false; renderer.setPixelRatio(1);
+  const gl=renderer.getContext();
+  const TEX_TYPE=(renderer.capabilities.isWebGL2 && gl.getExtension('EXT_color_buffer_float')) ? THREE.FloatType
+    : (gl.getExtension('OES_texture_half_float') && gl.getExtension('OES_texture_half_float_linear')) ? THREE.HalfFloatType
+    : THREE.UnsignedByteType;
+
+  const camera=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+  const scene=new THREE.Scene();
+  const quad=new THREE.Mesh(new THREE.PlaneGeometry(2,2));
+  scene.add(quad);
+  function blit(material,target){ quad.material=material; renderer.setRenderTarget(target); renderer.render(scene,camera); }
+  function createFBO(w,h){
+    return new THREE.WebGLRenderTarget(w,h,{wrapS:THREE.ClampToEdgeWrapping,wrapT:THREE.ClampToEdgeWrapping,minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,type:TEX_TYPE,format:THREE.RGBAFormat,depthBuffer:false,stencilBuffer:false});
+  }
+  function createDoubleFBO(w,h){
+    let a=createFBO(w,h), b=createFBO(w,h);
+    return { get read(){return a;}, get write(){return b;}, swap(){const t=a;a=b;b=t;} };
+  }
+
+  let velocity,dye,curlFBO,divergenceFBO,pressure,simW,simH,dyeW,dyeH;
+  const VERT=`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }`;
+
+  const splatMat=new THREE.ShaderMaterial({vertexShader:VERT,fragmentShader:`
+    precision highp float; varying vec2 vUv;
+    uniform sampler2D uTarget; uniform vec3 color; uniform vec2 point; uniform float radius;
+    void main(){
+      vec2 p=vUv-point; float splat=exp(-dot(p,p)/radius);
+      gl_FragColor=vec4(texture2D(uTarget,vUv).xyz + splat*color, 1.0);
+    }`, uniforms:{uTarget:{value:null},color:{value:new THREE.Vector3()},point:{value:new THREE.Vector2(0.5,0.5)},radius:{value:SPLAT_RADIUS}}});
+
+  const advectionMat=new THREE.ShaderMaterial({vertexShader:VERT,fragmentShader:`
+    precision highp float; varying vec2 vUv;
+    uniform sampler2D uVelocity; uniform sampler2D uSource; uniform vec2 texelSize; uniform float dt; uniform float dissipation;
+    void main(){
+      vec2 coord=vUv-dt*texture2D(uVelocity,vUv).xy*texelSize;
+      gl_FragColor=dissipation*texture2D(uSource,coord);
+    }`, uniforms:{uVelocity:{value:null},uSource:{value:null},texelSize:{value:new THREE.Vector2()},dt:{value:0.016},dissipation:{value:1}}});
+
+  const curlMat=new THREE.ShaderMaterial({vertexShader:VERT,fragmentShader:`
+    precision highp float; varying vec2 vUv;
+    uniform sampler2D uVelocity; uniform vec2 texelSize;
+    void main(){
+      float L=texture2D(uVelocity,vUv-vec2(texelSize.x,0.0)).y, R=texture2D(uVelocity,vUv+vec2(texelSize.x,0.0)).y;
+      float B=texture2D(uVelocity,vUv-vec2(0.0,texelSize.y)).x, T=texture2D(uVelocity,vUv+vec2(0.0,texelSize.y)).x;
+      gl_FragColor=vec4(0.5*((R-L)-(T-B)),0.0,0.0,1.0);
+    }`, uniforms:{uVelocity:{value:null},texelSize:{value:new THREE.Vector2()}}});
+
+  const vorticityMat=new THREE.ShaderMaterial({vertexShader:VERT,fragmentShader:`
+    precision highp float; varying vec2 vUv;
+    uniform sampler2D uVelocity; uniform sampler2D uCurl; uniform float curlStrength; uniform vec2 texelSize; uniform float dt;
+    void main(){
+      float L=texture2D(uCurl,vUv-vec2(texelSize.x,0.0)).x, R=texture2D(uCurl,vUv+vec2(texelSize.x,0.0)).x;
+      float B=texture2D(uCurl,vUv-vec2(0.0,texelSize.y)).x, T=texture2D(uCurl,vUv+vec2(0.0,texelSize.y)).x;
+      float C=texture2D(uCurl,vUv).x;
+      vec2 force=0.5*vec2(abs(T)-abs(B),abs(R)-abs(L)); force/=length(force)+0.0001; force*=curlStrength*C; force.y*=-1.0;
+      gl_FragColor=vec4(texture2D(uVelocity,vUv).xy+force*dt,0.0,1.0);
+    }`, uniforms:{uVelocity:{value:null},uCurl:{value:null},curlStrength:{value:CURL},texelSize:{value:new THREE.Vector2()},dt:{value:0.016}}});
+
+  const divergenceMat=new THREE.ShaderMaterial({vertexShader:VERT,fragmentShader:`
+    precision highp float; varying vec2 vUv;
+    uniform sampler2D uVelocity; uniform vec2 texelSize;
+    void main(){
+      float L=texture2D(uVelocity,vUv-vec2(texelSize.x,0.0)).x, R=texture2D(uVelocity,vUv+vec2(texelSize.x,0.0)).x;
+      float B=texture2D(uVelocity,vUv-vec2(0.0,texelSize.y)).y, T=texture2D(uVelocity,vUv+vec2(0.0,texelSize.y)).y;
+      gl_FragColor=vec4(0.5*((R-L)+(T-B)),0.0,0.0,1.0);
+    }`, uniforms:{uVelocity:{value:null},texelSize:{value:new THREE.Vector2()}}});
+
+  const clearMat=new THREE.ShaderMaterial({vertexShader:VERT,fragmentShader:`
+    precision highp float; varying vec2 vUv; uniform sampler2D uTexture; uniform float value;
+    void main(){ gl_FragColor=value*texture2D(uTexture,vUv); }`, uniforms:{uTexture:{value:null},value:{value:1}}});
+
+  const pressureMat=new THREE.ShaderMaterial({vertexShader:VERT,fragmentShader:`
+    precision highp float; varying vec2 vUv;
+    uniform sampler2D uPressure; uniform sampler2D uDivergence; uniform vec2 texelSize;
+    void main(){
+      float L=texture2D(uPressure,vUv-vec2(texelSize.x,0.0)).x, R=texture2D(uPressure,vUv+vec2(texelSize.x,0.0)).x;
+      float B=texture2D(uPressure,vUv-vec2(0.0,texelSize.y)).x, T=texture2D(uPressure,vUv+vec2(0.0,texelSize.y)).x;
+      float div=texture2D(uDivergence,vUv).x;
+      gl_FragColor=vec4((L+R+B+T-div)*0.25,0.0,0.0,1.0);
+    }`, uniforms:{uPressure:{value:null},uDivergence:{value:null},texelSize:{value:new THREE.Vector2()}}});
+
+  const gradientMat=new THREE.ShaderMaterial({vertexShader:VERT,fragmentShader:`
+    precision highp float; varying vec2 vUv;
+    uniform sampler2D uPressure; uniform sampler2D uVelocity; uniform vec2 texelSize;
+    void main(){
+      float L=texture2D(uPressure,vUv-vec2(texelSize.x,0.0)).x, R=texture2D(uPressure,vUv+vec2(texelSize.x,0.0)).x;
+      float B=texture2D(uPressure,vUv-vec2(0.0,texelSize.y)).x, T=texture2D(uPressure,vUv+vec2(0.0,texelSize.y)).x;
+      vec2 vel=texture2D(uVelocity,vUv).xy - vec2(R-L,T-B)*0.5;
+      gl_FragColor=vec4(vel,0.0,1.0);
+    }`, uniforms:{uPressure:{value:null},uVelocity:{value:null},texelSize:{value:new THREE.Vector2()}}});
+
+  const displayMat=new THREE.ShaderMaterial({vertexShader:VERT,fragmentShader:`
+    precision highp float; varying vec2 vUv;
+    uniform sampler2D uDye; uniform vec3 paperColor;
+    void main(){
+      vec3 col=paperColor*exp(-texture2D(uDye,vUv).rgb);
+      vec2 c=vUv-0.5; float d=length(c);
+      float vig=smoothstep(0.5,0.15,d);
+      col=mix(paperColor,col,vig);
+      if(d>0.5) discard;
+      gl_FragColor=vec4(col,1.0);
+    }`, uniforms:{uDye:{value:null},paperColor:{value:new THREE.Vector3(PAPER_RGB[0],PAPER_RGB[1],PAPER_RGB[2])}}});
+
+  function initFBOs(w,h){
+    simW=SIM_RES; simH=SIM_RES; dyeW=DYE_RES; dyeH=DYE_RES;
+    velocity=createDoubleFBO(simW,simH); curlFBO=createFBO(simW,simH);
+    divergenceFBO=createFBO(simW,simH); pressure=createDoubleFBO(simW,simH);
+    dye=createDoubleFBO(dyeW,dyeH);
+  }
+  function resize(){
+    const size=Math.max(1,Math.floor(canvas.clientWidth||canvas.parentElement.clientWidth*0.26));
+    renderer.setSize(size,size,false);
+    initFBOs(size,size);
+  }
+
+  function step(dt){
+    const simTexel=new THREE.Vector2(1/simW,1/simH);
+    curlMat.uniforms.uVelocity.value=velocity.read.texture; curlMat.uniforms.texelSize.value=simTexel;
+    blit(curlMat,curlFBO);
+    vorticityMat.uniforms.uVelocity.value=velocity.read.texture; vorticityMat.uniforms.uCurl.value=curlFBO.texture;
+    vorticityMat.uniforms.texelSize.value=simTexel; vorticityMat.uniforms.dt.value=dt;
+    blit(vorticityMat,velocity.write); velocity.swap();
+    divergenceMat.uniforms.uVelocity.value=velocity.read.texture; divergenceMat.uniforms.texelSize.value=simTexel;
+    blit(divergenceMat,divergenceFBO);
+    clearMat.uniforms.uTexture.value=pressure.read.texture; clearMat.uniforms.value.value=PRESSURE_DECAY;
+    blit(clearMat,pressure.write); pressure.swap();
+    for(let i=0;i<PRESSURE_ITER;i++){
+      pressureMat.uniforms.uPressure.value=pressure.read.texture; pressureMat.uniforms.uDivergence.value=divergenceFBO.texture;
+      pressureMat.uniforms.texelSize.value=simTexel;
+      blit(pressureMat,pressure.write); pressure.swap();
+    }
+    gradientMat.uniforms.uPressure.value=pressure.read.texture; gradientMat.uniforms.uVelocity.value=velocity.read.texture;
+    gradientMat.uniforms.texelSize.value=simTexel;
+    blit(gradientMat,velocity.write); velocity.swap();
+
+    const velDecay=Math.pow(0.02,dt*VEL_DISSIPATION);
+    advectionMat.uniforms.uVelocity.value=velocity.read.texture; advectionMat.uniforms.uSource.value=velocity.read.texture;
+    advectionMat.uniforms.texelSize.value=simTexel; advectionMat.uniforms.dt.value=dt; advectionMat.uniforms.dissipation.value=velDecay;
+    blit(advectionMat,velocity.write); velocity.swap();
+
+    const dyeTexel=new THREE.Vector2(1/dyeW,1/dyeH);
+    const dyeDecay=Math.pow(0.02,dt*DYE_DISSIPATION);
+    advectionMat.uniforms.uVelocity.value=velocity.read.texture; advectionMat.uniforms.uSource.value=dye.read.texture;
+    advectionMat.uniforms.texelSize.value=dyeTexel; advectionMat.uniforms.dt.value=dt; advectionMat.uniforms.dissipation.value=dyeDecay;
+    blit(advectionMat,dye.write); dye.swap();
+  }
+
+  function drip(){
+    const jitter=()=>0.5+(Math.random()-0.5)*0.06;
+    splatMat.uniforms.uTarget.value=velocity.read.texture;
+    splatMat.uniforms.point.value.set(jitter(),jitter());
+    splatMat.uniforms.color.value.set((Math.random()-0.5)*220,(Math.random()-0.5)*220,0);
+    splatMat.uniforms.radius.value=SPLAT_RADIUS;
+    blit(splatMat,velocity.write); velocity.swap();
+
+    splatMat.uniforms.uTarget.value=dye.read.texture;
+    splatMat.uniforms.point.value.set(0.5,0.5);
+    splatMat.uniforms.color.value.set(ABSORPTION[0],ABSORPTION[1],ABSORPTION[2]);
+    splatMat.uniforms.radius.value=SPLAT_RADIUS*2.2;
+    blit(splatMat,dye.write); dye.swap();
+  }
+
+  let visible=true, rafId=null, lastFrame=performance.now(), lastDrip=0;
+  function loop(now){
+    rafId=requestAnimationFrame(loop);
+    let dt=(now-lastFrame)/1000; lastFrame=now; dt=Math.min(dt,1/30);
+    step(dt);
+    if(now-lastDrip>DROP_GAP){ lastDrip=now; drip(); }
+    displayMat.uniforms.uDye.value=dye.read.texture;
+    blit(displayMat,null);
+  }
+  function start(){ if(!rafId){ lastFrame=performance.now(); rafId=requestAnimationFrame(loop); } }
+  function stop(){ if(rafId){ cancelAnimationFrame(rafId); rafId=null; } }
+
+  new IntersectionObserver((entries)=>{
+    entries.forEach(entry=>{ visible=entry.isIntersecting; if(visible) start(); else stop(); });
+  },{threshold:0.05}).observe(hostEl);
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden) stop(); else if(visible) start();
+  });
+
+  let resizeTimer=null;
+  window.addEventListener('resize', ()=>{ clearTimeout(resizeTimer); resizeTimer=setTimeout(resize,200); });
+
+  resize();
+  lastDrip=performance.now()-DROP_GAP+300; // first drip arrives quickly after load
+  start();
 })();
 </script>
 
