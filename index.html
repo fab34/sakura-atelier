@@ -196,10 +196,11 @@
   .tile:nth-child(3){background:radial-gradient(circle at 30% 70%, var(--sakura-deep) 0%, #e2cfc4 50%, #ecdfce 100%);}
 
   /* ---------- quote ---------- */
-  #quote{ background:var(--ink); color:var(--paper); padding-top:16vh; padding-bottom:4vh; }
+  #quote{ background:var(--ink); color:var(--paper); padding-top:26vh; padding-bottom:2vh; }
   #quote blockquote{
-    font-family:'ChenYuluoyan','Cormorant Garamond',serif; font-style:normal; font-weight:400;
-    font-size:clamp(1.9rem,4.6vw,3rem); max-width:20ch; line-height:1.9; letter-spacing:0.03em;
+    font-family:'ChenYuluoyan','Cormorant Garamond',serif; font-style:normal; font-weight:300;
+    font-synthesis:none; -webkit-font-smoothing:antialiased;
+    font-size:clamp(1.5rem,3.4vw,2.3rem); max-width:20ch; line-height:1.9; letter-spacing:0.02em;
   }
   #quote cite{ display:block; margin-top:1.6rem; font-style:normal; font-size:0.75rem; letter-spacing:0.3em; opacity:0.6; }
 
@@ -482,7 +483,7 @@
   // the section's top edge — the default 'top 80%'->'top 30%' range (keyed
   // to the section's top) finished before that stroke had scrolled into
   // view, so it's shifted later here.
-  drawOnEnter('.draw-underline','#quote',null,'top -30%','top 40%');
+  drawOnEnter('.draw-underline','#quote',null,'top -40%','top 30%');
   drawOnEnter('.draw-torii','#visit');
 
   // blinds mask transition: #visit is pinned briefly while six ink-colored
