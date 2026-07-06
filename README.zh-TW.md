@@ -20,6 +20,7 @@
 - [GSAP](https://greensock.com/gsap/) + `ScrollTrigger` — 滾動連動動畫與釘選(pin)效果。
 - [Three.js r128](https://threejs.org/) — 流體模擬的 WebGL 渲染。
 - Google Fonts:Cormorant Garamond、Noto Serif JP、Shippori Mincho。
+- [辰宇落雁體 ChenYuluoyan](https://github.com/Chenyu-otf/chenyuluoyan_thin)(OFL-1.1 授權)— 用於結尾引言文字;已裁剪(subset)成只包含實際用到的字,檔案僅約 12KB(`fonts/chenyuluoyan-quote-subset.woff2`)。
 
 ## 專案結構
 

@@ -7,6 +7,14 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,400&family=Noto+Serif+JP:wght@200;300;400&family=Shippori+Mincho:wght@400;500&display=swap');
 
+  /* Chenyu-Luoyan Ti (辰宇落雁體), OFL-1.1 licensed — https://github.com/Chenyu-otf/chenyuluoyan_thin
+     Subset to only the glyphs used in the #quote blockquote to keep the file small. */
+  @font-face{
+    font-family:'ChenYuluoyan';
+    src:url('fonts/chenyuluoyan-quote-subset.woff2') format('woff2');
+    font-display:swap;
+  }
+
   :root{
     --paper:#f4efe6;
     --paper-2:#efe7d8;
@@ -190,8 +198,8 @@
   /* ---------- quote ---------- */
   #quote{ background:var(--ink); color:var(--paper); padding-top:16vh; padding-bottom:4vh; }
   #quote blockquote{
-    font-family:'Cormorant Garamond',serif; font-style:italic; font-weight:300;
-    font-size:clamp(1.6rem,4vw,2.6rem); max-width:20ch; line-height:1.6;
+    font-family:'ChenYuluoyan','Cormorant Garamond',serif; font-style:normal; font-weight:400;
+    font-size:clamp(1.9rem,4.6vw,3rem); max-width:20ch; line-height:1.9; letter-spacing:0.03em;
   }
   #quote cite{ display:block; margin-top:1.6rem; font-style:normal; font-size:0.75rem; letter-spacing:0.3em; opacity:0.6; }
 

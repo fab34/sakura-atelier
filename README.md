@@ -20,6 +20,7 @@ An interactive, scroll-driven single-page site for a fictional ink-and-blossom a
 - [GSAP](https://greensock.com/gsap/) + `ScrollTrigger` — scroll-linked animation and pinning.
 - [Three.js r128](https://threejs.org/) — WebGL rendering for the fluid simulation.
 - Google Fonts: Cormorant Garamond, Noto Serif JP, Shippori Mincho.
+- [辰宇落雁體 ChenYuluoyan](https://github.com/Chenyu-otf/chenyuluoyan_thin) (OFL-1.1) — used for the closing-quote text; subsetted to the glyphs actually used (`fonts/chenyuluoyan-quote-subset.woff2`, ~12KB) to keep page weight down.
 
 ## Project structure
 
